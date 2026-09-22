@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from kese.api.accounts import router as accounts_router
 from kese.api.auth import router as auth_router
 from kese.api.health import router as health_router
 from kese.api.ready import router as ready_router
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
         database_engine, expire_on_commit=False
     )
     app.include_router(auth_router)
+    app.include_router(accounts_router)
     app.include_router(health_router)
     app.include_router(ready_router)
 
