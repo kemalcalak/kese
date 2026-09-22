@@ -1,7 +1,10 @@
 """FastAPI application factory."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from kese.api.health import router as health_router
 from kese.api.ready import router as ready_router
@@ -9,19 +12,25 @@ from kese.core.database import create_engine
 from kese.core.settings import Settings
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Release the application's database engine on shutdown."""
+    yield
+    database_engine: AsyncEngine = app.state.database_engine
+    await database_engine.dispose()
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
 
-    app = FastAPI(title="kese")
-    app.state.database_engine = create_engine(Settings().database_url)
+    app = FastAPI(title="kese", lifespan=lifespan)
+    database_engine = create_engine(Settings().database_url)
+    app.state.database_engine = database_engine
+    app.state.async_session_factory = async_sessionmaker(
+        database_engine, expire_on_commit=False
+    )
     app.include_router(health_router)
     app.include_router(ready_router)
-
-    @app.on_event("shutdown")
-    async def close_database() -> None:
-        """Release the application's database engine."""
-        database_engine: AsyncEngine = app.state.database_engine
-        await database_engine.dispose()
 
     return app
 

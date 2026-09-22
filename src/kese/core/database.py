@@ -2,11 +2,11 @@
 
 from collections.abc import AsyncIterator
 
+from fastapi import Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
-    async_sessionmaker,
     create_async_engine,
 )
 
@@ -19,13 +19,10 @@ def create_engine(database_url: str | None = None) -> AsyncEngine:
     return create_async_engine(url, pool_pre_ping=True)
 
 
-engine = create_engine()
-async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
-
-
-async def get_session() -> AsyncIterator[AsyncSession]:
+async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     """Yield a database session for a FastAPI request."""
-    async with async_session_factory() as session:
+    session_factory = request.app.state.async_session_factory
+    async with session_factory() as session:
         yield session
 
 
