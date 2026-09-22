@@ -14,7 +14,7 @@ async def ready(request: Request, response: Response) -> dict[str, str]:
     database_engine = getattr(request.app.state, "database_engine", engine)
     try:
         await check_connection(database_engine)
-    except (SQLAlchemyError, OSError):
+    except SQLAlchemyError, OSError:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "unavailable"}
 
