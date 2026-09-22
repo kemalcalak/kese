@@ -7,6 +7,7 @@ has to do. It needs the compose database up and the migrations applied.
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -25,11 +26,18 @@ def an_email() -> str:
 
 
 def register(client: TestClient, email: str, password: str = PASSWORD) -> Response:
-    return client.post("/auth/register", json={"email": email, "password": password})
+    # cast: starlette's TestClient methods are typed as returning Any.
+    return cast(
+        Response,
+        client.post("/auth/register", json={"email": email, "password": password}),
+    )
 
 
 def login(client: TestClient, email: str, password: str = PASSWORD) -> Response:
-    return client.post("/auth/login", json={"email": email, "password": password})
+    return cast(
+        Response,
+        client.post("/auth/login", json={"email": email, "password": password}),
+    )
 
 
 def test_register_answers_the_user_without_the_password() -> None:
