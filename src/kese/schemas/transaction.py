@@ -13,6 +13,7 @@ class TransactionCreate(BaseModel):
     amount: Decimal
     occurred_at: datetime
     description: str
+    category_id: UUID | None = None
 
     @field_validator("occurred_at")
     @classmethod
@@ -33,6 +34,7 @@ class TransactionResponse(BaseModel):
     amount: Decimal
     occurred_at: datetime
     description: str
+    category_id: UUID | None
 
     @field_serializer("amount")
     def serialize_amount(self, value: Decimal) -> str:

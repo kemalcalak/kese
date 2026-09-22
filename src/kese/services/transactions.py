@@ -10,7 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kese.models import Transaction
 from kese.repositories.accounts import find_owned_account
-from kese.repositories.transactions import add_transaction, list_transactions
+from kese.repositories.categories import find_owned_category
+from kese.repositories.rules import list_owned_rules
+from kese.repositories.transactions import (
+    add_transaction,
+    list_transactions,
+    list_user_transactions,
+)
 
 
 class InvalidCursorError(ValueError):
@@ -52,17 +58,30 @@ async def create_transaction(
     amount: Decimal,
     occurred_at: datetime,
     description: str,
+    category_id: UUID | None,
 ) -> Transaction | None:
     """Create a transaction only for an account owned by the user."""
     account = await find_owned_account(session, account_id, user_id)
     if account is None:
         return None
+    if category_id is not None:
+        if await find_owned_category(session, category_id, user_id) is None:
+            return None
+    else:
+        rules = await list_owned_rules(session, user_id)
+        lowered_description = description.casefold()
+        matching_rule = next(
+            (rule for rule in rules if rule.pattern.casefold() in lowered_description),
+            None,
+        )
+        category_id = matching_rule.category_id if matching_rule is not None else None
     transaction = await add_transaction(
         session,
         account.id,
         amount,
         utc_datetime(occurred_at),
         description,
+        category_id,
     )
     await session.commit()
     return transaction
@@ -77,6 +96,7 @@ async def get_transactions(
     query: str | None,
     since: datetime | None,
     until: datetime | None,
+    category_id: UUID | None,
 ) -> tuple[list[Transaction], str | None] | None:
     """Return an owned account's transactions and the next cursor."""
     account = await find_owned_account(session, account_id, user_id)
@@ -91,6 +111,26 @@ async def get_transactions(
         query,
         utc_datetime(since) if since is not None else None,
         utc_datetime(until) if until is not None else None,
+        category_id,
     )
     next_cursor = encode_cursor(rows[limit - 1]) if len(rows) > limit else None
     return rows[:limit], next_cursor
+
+
+async def recategorize_transactions(session: AsyncSession, user_id: UUID) -> int:
+    """Apply the user's current rules to all their transactions."""
+    rules = await list_owned_rules(session, user_id)
+    transactions = await list_user_transactions(session, user_id)
+    updated = 0
+    for transaction in transactions:
+        lowered_description = transaction.description.casefold()
+        matching_rule = next(
+            (rule for rule in rules if rule.pattern.casefold() in lowered_description),
+            None,
+        )
+        category_id = matching_rule.category_id if matching_rule is not None else None
+        if transaction.category_id != category_id:
+            transaction.category_id = category_id
+            updated += 1
+    await session.commit()
+    return updated

@@ -22,6 +22,7 @@ from kese.services.transactions import (
     InvalidCursorError,
     create_transaction,
     get_transactions,
+    recategorize_transactions,
 )
 
 router = APIRouter()
@@ -81,6 +82,7 @@ async def create_transaction_endpoint(
         body.amount,
         body.occurred_at,
         body.description,
+        body.category_id,
     )
     if transaction is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -100,11 +102,12 @@ async def list_transactions_endpoint(
     q: str | None = None,
     since: datetime | None = None,
     until: datetime | None = None,
+    category_id: UUID | None = None,
 ) -> TransactionPage:
     """List an owned account's transactions with keyset pagination."""
     try:
         result = await get_transactions(
-            session, user.id, account_id, limit, cursor, q, since, until
+            session, user.id, account_id, limit, cursor, q, since, until, category_id
         )
     except InvalidCursorError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY) from error
@@ -115,3 +118,11 @@ async def list_transactions_endpoint(
         items=[TransactionResponse.model_validate(item) for item in rows],
         next_cursor=next_cursor,
     )
+
+
+@router.post("/transactions/recategorize")
+async def recategorize_transactions_endpoint(
+    session: Session, user: CurrentUser
+) -> dict[str, int]:
+    """Apply the caller's rules to their existing transactions."""
+    return {"updated": await recategorize_transactions(session, user.id)}

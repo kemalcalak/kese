@@ -32,3 +32,9 @@ class Transaction(Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     description: Mapped[str] = mapped_column(String(1000), nullable=False)
+    category_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("categories.id", name="fk_transactions_category_id"),
+        nullable=True,
+        index=True,
+    )
