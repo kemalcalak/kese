@@ -1,0 +1,25 @@
+name: kese
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: kese-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${KESE_PG_USER:-kese}
+      POSTGRES_PASSWORD: ${KESE_PG_PASSWORD:-kese}
+      POSTGRES_DB: ${KESE_PG_DB:-kese}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # Loopback only, and 5433 because kortex's own database holds 5432.
+      - "127.0.0.1:${KESE_PG_PORT:-5433}:5432"
+    volumes:
+      - kese-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KESE_PG_USER:-kese}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  kese-pgdata:
