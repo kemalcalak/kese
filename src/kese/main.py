@@ -11,6 +11,7 @@ from kese.api.auth import router as auth_router
 from kese.api.categories import router as categories_router
 from kese.api.health import router as health_router
 from kese.api.ready import router as ready_router
+from kese.api.statements import router as statements_router
 from kese.core.database import create_engine
 from kese.core.settings import Settings
 
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(categories_router)
     app.include_router(health_router)
     app.include_router(ready_router)
+    app.include_router(statements_router)
 
     return app
 

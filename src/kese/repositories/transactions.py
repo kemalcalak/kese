@@ -17,6 +17,7 @@ async def add_transaction(
     occurred_at: datetime,
     description: str,
     category_id: UUID | None = None,
+    fingerprint: str | None = None,
 ) -> Transaction:
     """Add a transaction and flush its generated identifier."""
     transaction = Transaction(
@@ -25,6 +26,7 @@ async def add_transaction(
         occurred_at=occurred_at,
         description=description,
         category_id=category_id,
+        fingerprint=fingerprint,
     )
     session.add(transaction)
     await session.flush()

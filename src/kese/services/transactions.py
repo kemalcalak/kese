@@ -23,6 +23,36 @@ class InvalidCursorError(ValueError):
     """Raised when a cursor cannot be decoded."""
 
 
+async def import_transaction(
+    session: AsyncSession,
+    user_id: UUID,
+    account_id: UUID,
+    amount: Decimal,
+    occurred_at: datetime,
+    description: str,
+    fingerprint: str,
+) -> Transaction | None:
+    """Import one transaction and apply only the owner's categorisation rules."""
+    account = await find_owned_account(session, account_id, user_id)
+    if account is None:
+        return None
+    rules = await list_owned_rules(session, user_id)
+    lowered_description = description.casefold()
+    matching_rule = next(
+        (rule for rule in rules if rule.pattern.casefold() in lowered_description),
+        None,
+    )
+    return await add_transaction(
+        session,
+        account.id,
+        amount,
+        utc_datetime(occurred_at),
+        description,
+        matching_rule.category_id if matching_rule is not None else None,
+        fingerprint,
+    )
+
+
 def encode_cursor(transaction: Transaction) -> str:
     """Encode the last row's sort keys into an opaque URL-safe cursor."""
     value = f"{transaction.occurred_at.isoformat()}|{transaction.id}"
