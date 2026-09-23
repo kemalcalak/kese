@@ -1,6 +1,6 @@
 """Transaction export business rules."""
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
@@ -17,8 +17,16 @@ async def get_export_rows(
     session: AsyncSession, user_id: UUID, since: str, until: str
 ) -> list[tuple[datetime, str, str, str | None, Decimal]]:
     """Fetch the caller's transaction rows for an inclusive UTC day range."""
+    rows = stream_export_rows(session, user_id, since, until)
+    return [row async for row in rows]
+
+
+def stream_export_rows(
+    session: AsyncSession, user_id: UUID, since: str, until: str
+) -> AsyncIterator[tuple[datetime, str, str, str | None, Decimal]]:
+    """Return the caller's rows as a server-side cursor iterator."""
     start, end = export_range(since, until)
-    return await export_transactions(session, user_id, start, end)
+    return export_transactions(session, user_id, start, end)
 
 
 def build_xlsx(

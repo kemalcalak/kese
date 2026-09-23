@@ -1,36 +1,38 @@
 """Transaction export HTTP endpoints."""
 
 import csv
-from collections.abc import Iterator, Sequence
+from collections.abc import AsyncIterable, AsyncIterator
 from datetime import UTC, datetime
 from decimal import Decimal
 from io import StringIO
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from kese.api.accounts import token_owner
 from kese.core.database import get_session
 from kese.models import User
-from kese.services.exports import build_xlsx, get_export_rows
+from kese.services.exports import build_xlsx, get_export_rows, stream_export_rows
+from kese.services.reports import export_range
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 Session = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(token_owner)]
 
 
-def csv_chunks(
-    rows: Sequence[tuple[datetime, str, str, str | None, Decimal]],
-) -> Iterator[str]:
+async def csv_chunks(
+    rows: AsyncIterable[tuple[datetime, str, str, str | None, Decimal]],
+) -> AsyncIterator[str]:
     """Yield CSV header and rows without assembling the response body."""
     header = StringIO()
     csv.writer(header).writerow(
         ["date", "account", "description", "category", "amount"]
     )
     yield header.getvalue()
-    for occurred_at, account, description, category, amount in rows:
+    async for occurred_at, account, description, category, amount in rows:
         line = StringIO()
         csv.writer(line).writerow(
             [
@@ -42,6 +44,19 @@ def csv_chunks(
             ]
         )
         yield line.getvalue()
+
+
+async def stream_csv_export(
+    session_factory: async_sessionmaker[AsyncSession],
+    user_id: UUID,
+    since: str,
+    until: str,
+) -> AsyncIterator[str]:
+    """Keep the export session open until the CSV stream is exhausted."""
+    async with session_factory() as session:
+        rows = stream_export_rows(session, user_id, since, until)
+        async for chunk in csv_chunks(rows):
+            yield chunk
 
 
 async def export_data(
@@ -58,15 +73,21 @@ async def export_data(
 
 @router.get("/transactions.csv")
 async def transactions_csv(
-    session: Session,
+    request: Request,
     user: CurrentUser,
     since: str = Query(...),
     until: str = Query(...),
 ) -> StreamingResponse:
     """Stream the caller's transactions as CSV."""
-    rows = await export_data(session, user, since, until)
+    try:
+        export_range(since, until)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+    session_factory = request.app.state.async_session_factory
     return StreamingResponse(
-        csv_chunks(rows),
+        stream_csv_export(session_factory, user.id, since, until),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=transactions.csv"},
     )

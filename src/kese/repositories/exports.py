@@ -1,5 +1,6 @@
 """SQL queries for transaction exports."""
 
+from collections.abc import AsyncIterator
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
@@ -15,8 +16,8 @@ async def export_transactions(
     user_id: UUID,
     start: datetime,
     end: datetime,
-) -> list[tuple[datetime, str, str, str | None, Decimal]]:
-    """Return only the owner's transactions in an exclusive UTC range."""
+) -> AsyncIterator[tuple[datetime, str, str, str | None, Decimal]]:
+    """Stream only the owner's transactions in an exclusive UTC range."""
     statement = (
         select(
             Transaction.occurred_at,
@@ -37,5 +38,9 @@ async def export_transactions(
         )
         .order_by(Transaction.occurred_at, Transaction.id)
     )
-    rows = (await session.execute(statement)).all()
-    return [(row[0], row[1], row[2], row[3], Decimal(row[4])) for row in rows]
+    result = await session.stream(statement)
+    try:
+        async for row in result:
+            yield (row[0], row[1], row[2], row[3], Decimal(row[4]))
+    finally:
+        await result.close()
