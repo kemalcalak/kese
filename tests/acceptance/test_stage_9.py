@@ -222,7 +222,7 @@ def test_the_trend_keeps_empty_months_and_a_running_total() -> None:
     assert [point["month"] for point in series] == ["2026-03", "2026-04", "2026-05"]
     assert [dec(point["net"]) for point in series] == [
         Decimal("1000.00"),
-        Decimal("0"),
+        Decimal(0),
         Decimal("-400.00"),
     ]
     assert [dec(point["running_net"]) for point in series] == [
