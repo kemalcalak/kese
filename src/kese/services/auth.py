@@ -42,7 +42,11 @@ async def register_user(session: AsyncSession, email: str, password: str) -> Use
 
 
 async def login_user(
-    session: AsyncSession, email: str, password: str, settings: Settings
+    session: AsyncSession,
+    email: str,
+    password: str,
+    settings: Settings,
+    jwt_secret: str | None = None,
 ) -> tuple[str, str]:
     """Validate credentials and issue access and refresh tokens."""
     user = await find_user_by_email(session, email)
@@ -50,15 +54,20 @@ async def login_user(
     if not verify_password(password, hashed_password) or user is None:
         raise InvalidCredentialsError
     return (
-        create_token(user.id, settings, "access"),
-        create_token(user.id, settings, "refresh"),
+        create_token(user.id, settings, "access", jwt_secret),
+        create_token(user.id, settings, "refresh", jwt_secret),
     )
 
 
-async def current_user(session: AsyncSession, token: str, settings: Settings) -> User:
+async def current_user(
+    session: AsyncSession,
+    token: str,
+    settings: Settings,
+    jwt_secret: str | None = None,
+) -> User:
     """Resolve a bearer access token to its user."""
     try:
-        user_id = decode_token(token, settings, "access")
+        user_id = decode_token(token, settings, "access", jwt_secret)
     except (jwt.InvalidTokenError, ValueError) as error:
         raise InvalidTokenError from error
     user = await find_user_by_id(session, user_id)
@@ -68,14 +77,17 @@ async def current_user(session: AsyncSession, token: str, settings: Settings) ->
 
 
 async def refresh_access_token(
-    session: AsyncSession, token: str, settings: Settings
+    session: AsyncSession,
+    token: str,
+    settings: Settings,
+    jwt_secret: str | None = None,
 ) -> str:
     """Validate a refresh token and issue a new access token."""
     try:
-        user_id: UUID = decode_token(token, settings, "refresh")
+        user_id: UUID = decode_token(token, settings, "refresh", jwt_secret)
     except (jwt.InvalidTokenError, ValueError) as error:
         raise InvalidTokenError from error
     user = await find_user_by_id(session, user_id)
     if user is None:
         raise InvalidTokenError
-    return create_token(user.id, settings, "access")
+    return create_token(user.id, settings, "access", jwt_secret)

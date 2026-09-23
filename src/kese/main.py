@@ -5,7 +5,6 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from json import dumps
 from logging import Formatter, StreamHandler, getLogger
-from os import environ
 from sys import stdout
 from time import monotonic
 from typing import Any
@@ -28,6 +27,7 @@ from kese.api.ready import router as ready_router
 from kese.api.reports import router as reports_router
 from kese.api.statements import router as statements_router
 from kese.core.database import create_engine
+from kese.core.security import resolve_jwt_secret
 from kese.core.settings import Settings
 
 access_logger = getLogger("kese.access")
@@ -101,12 +101,12 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     _configure_access_logger()
     settings = Settings()
-    if settings.env != "local" and "KESE_JWT_SECRET" not in environ:
-        raise RuntimeError("create_app() requires KESE_JWT_SECRET outside local")
+    jwt_secret = resolve_jwt_secret(settings)
 
     app = FastAPI(title="kese", lifespan=lifespan)
     database_engine = create_engine(settings.database_url)
     app.state.settings = settings
+    app.state.jwt_secret = jwt_secret
     app.state.database_engine = database_engine
     app.state.async_session_factory = async_sessionmaker(
         database_engine, expire_on_commit=False

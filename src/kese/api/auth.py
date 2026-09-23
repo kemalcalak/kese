@@ -73,7 +73,11 @@ async def login(
     attempts.append(now)
     try:
         access_token, refresh_token = await login_user(
-            session, credentials.email, credentials.password, request.app.state.settings
+            session,
+            credentials.email,
+            credentials.password,
+            request.app.state.settings,
+            request.app.state.jwt_secret,
         )
     except InvalidCredentialsError as error:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
@@ -89,7 +93,9 @@ async def me(
     """Return the user represented by an access bearer token."""
     token = bearer_token(authorization)
     try:
-        user = await current_user(session, token, request.app.state.settings)
+        user = await current_user(
+            session, token, request.app.state.settings, request.app.state.jwt_secret
+        )
     except InvalidTokenError as error:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
     return UserResponse(id=user.id, email=user.email)
@@ -102,7 +108,10 @@ async def refresh(
     """Exchange a refresh token for a new access token."""
     try:
         access_token = await refresh_access_token(
-            session, body.refresh_token, request.app.state.settings
+            session,
+            body.refresh_token,
+            request.app.state.settings,
+            request.app.state.jwt_secret,
         )
     except InvalidTokenError as error:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
