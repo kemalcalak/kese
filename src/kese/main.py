@@ -4,8 +4,9 @@ from collections import defaultdict, deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from json import dumps
-from logging import getLogger
+from logging import Formatter, StreamHandler, getLogger
 from os import environ
+from sys import stdout
 from time import monotonic
 from typing import Any
 from uuid import uuid4
@@ -41,6 +42,18 @@ _STATUS_CODES = {
     500: "internal_error",
     503: "unavailable",
 }
+
+
+def _configure_access_logger() -> None:
+    """Send access logs to stdout without adding duplicate handlers."""
+    if any(handler.name == "kese.stdout" for handler in access_logger.handlers):
+        return
+
+    handler = StreamHandler(stdout)
+    handler.set_name("kese.stdout")
+    handler.setFormatter(Formatter("%(message)s"))
+    access_logger.addHandler(handler)
+    access_logger.setLevel("INFO")
 
 
 @asynccontextmanager
@@ -86,6 +99,7 @@ def _login_limit(value: str) -> tuple[int, float]:
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    _configure_access_logger()
     settings = Settings()
     if settings.env != "local" and "KESE_JWT_SECRET" not in environ:
         raise RuntimeError("create_app() requires KESE_JWT_SECRET outside local")

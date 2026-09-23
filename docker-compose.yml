@@ -22,7 +22,7 @@ services:
       retries: 20
 
   api:
-    image: ${KESE_API_IMAGE:-ghcr.io/kemalcalak/kese:latest}
+    build: .
     restart: unless-stopped
     depends_on:
       postgres:
@@ -33,7 +33,7 @@ services:
       KESE_DATABASE_URL: ${KESE_DATABASE_URL:-postgresql+asyncpg://kese:kese@postgres:5432/kese}
       KESE_LOGIN_RATE_LIMIT: ${KESE_LOGIN_RATE_LIMIT:-10/minute}
     ports:
-      - "${KESE_API_PORT:-8000}:8000"
+      - "127.0.0.1:${KESE_API_PORT:-8000}:8000"
 
 volumes:
   kese-pgdata:

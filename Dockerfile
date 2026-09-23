@@ -14,4 +14,4 @@ COPY --from=builder --chown=kese:kese /app /app
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 USER kese
 EXPOSE 8000
-CMD ["uvicorn", "kese.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "kese.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
