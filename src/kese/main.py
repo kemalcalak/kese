@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from kese.api.accounts import router as accounts_router
 from kese.api.auth import router as auth_router
+from kese.api.budgets import router as budgets_router
 from kese.api.categories import router as categories_router
 from kese.api.exchange_rates import router as exchange_rates_router
 from kese.api.health import router as health_router
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(auth_router)
     app.include_router(accounts_router)
+    app.include_router(budgets_router)
     app.include_router(categories_router)
     app.include_router(exchange_rates_router)
     app.include_router(health_router)

@@ -17,6 +17,7 @@ from kese.repositories.transactions import (
     list_transactions,
     list_user_transactions,
 )
+from kese.services.budgets import record_budget_crossing
 
 
 class InvalidCursorError(ValueError):
@@ -105,13 +106,21 @@ async def create_transaction(
             None,
         )
         category_id = matching_rule.category_id if matching_rule is not None else None
+    normalized_occurred_at = utc_datetime(occurred_at)
     transaction = await add_transaction(
         session,
         account.id,
         amount,
-        utc_datetime(occurred_at),
+        normalized_occurred_at,
         description,
         category_id,
+    )
+    await record_budget_crossing(
+        session,
+        user_id,
+        category_id,
+        normalized_occurred_at.strftime("%Y-%m"),
+        amount,
     )
     await session.commit()
     return transaction
