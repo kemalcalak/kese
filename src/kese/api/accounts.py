@@ -34,7 +34,9 @@ async def token_owner(request: Request, session: Session) -> User:
     authorization = request.headers.get("Authorization")
     token = bearer_token(authorization)
     try:
-        return await current_user(session, token, request.app.state.settings)
+        return await current_user(
+            session, token, request.app.state.settings, request.app.state.jwt_secret
+        )
     except InvalidTokenError as error:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
 

@@ -1,17 +1,25 @@
 """Stage 10 - hardening.
 
-Written by hand before the stage and never edited: it states what the stage
-has to do. It needs the compose database up and the migrations applied.
+Written by hand before the stage and never edited except to fix the test
+itself: it states what the stage has to do. It needs the compose database up
+and the migrations applied.
 
 Every error has one shape, every request one id and one log line, logins are
 rate limited, production will not start on a throwaway secret, and the image
 runs as someone other than root and never carries the `.env`.
+
+Two tests were added after the stage, from running the image: an empty secret
+passed the production check (compose writes one when the variable is unset),
+and the access log existed only for pytest's `caplog` - in the container not
+one line of it reached the output.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -173,11 +181,62 @@ def test_production_refuses_to_start_without_a_jwt_secret(
         create_app()
 
 
+@pytest.mark.parametrize("secret", ["", "   ", "too-short"])
+def test_production_refuses_an_empty_or_short_jwt_secret(
+    monkeypatch: pytest.MonkeyPatch, secret: str
+) -> None:
+    monkeypatch.setenv("KESE_ENV", "production")
+    monkeypatch.setenv("KESE_JWT_SECRET", secret)
+
+    with pytest.raises((RuntimeError, ValueError), match="KESE_JWT_SECRET"):
+        create_app()
+
+
+def test_production_starts_with_a_real_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KESE_ENV", "production")
+    monkeypatch.setenv("KESE_JWT_SECRET", "x" * 32)
+
+    assert create_app().title == "kese"
+
+
+def test_the_access_log_reaches_the_process_output() -> None:
+    """In a plain process - no pytest, no caplog - a request is one JSON line."""
+    script = (
+        "from fastapi.testclient import TestClient\n"
+        "from kese.main import create_app\n"
+        "with TestClient(create_app()) as client:\n"
+        "    client.get('/health')\n"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=True,
+    )
+
+    entries = []
+    for line in (done.stdout + done.stderr).splitlines():
+        if line.startswith("{"):
+            entries.append(json.loads(line))
+    assert any(entry.get("path") == "/health" for entry in entries), done.stderr
+
+
 def test_local_development_still_starts_without_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("KESE_ENV", "local")
     monkeypatch.delenv("KESE_JWT_SECRET", raising=False)
+
+    assert create_app().title == "kese"
+
+
+def test_local_development_treats_an_empty_secret_as_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Compose passes `KESE_JWT_SECRET=""` when the variable is not set."""
+    monkeypatch.setenv("KESE_ENV", "local")
+    monkeypatch.setenv("KESE_JWT_SECRET", "")
 
     assert create_app().title == "kese"
 

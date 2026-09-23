@@ -1,6 +1,7 @@
 """Password hashing and JWT helpers."""
 
 from datetime import UTC, datetime, timedelta
+from secrets import token_urlsafe
 from typing import Any, Literal
 from uuid import UUID
 
@@ -10,7 +11,22 @@ from pwdlib import PasswordHash
 from kese.core.settings import Settings
 
 password_hash = PasswordHash.recommended()
+DUMMY_PASSWORD_HASH = password_hash.hash("invalid-user-password")
 TokenKind = Literal["access", "refresh"]
+
+
+def resolve_jwt_secret(settings: Settings) -> str:
+    """Resolve the JWT key once, allowing local development without a secret."""
+    secret = settings.jwt_secret.strip()
+    if not secret:
+        if settings.env == "local":
+            return token_urlsafe(32)
+        raise RuntimeError(
+            "KESE_JWT_SECRET must be provided outside the local environment"
+        )
+    if settings.env != "local" and len(secret) < 32:
+        raise RuntimeError("KESE_JWT_SECRET must be at least 32 characters")
+    return secret
 
 
 def hash_password(password: str) -> str:
@@ -23,7 +39,12 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_hash.verify(password, hashed_password)
 
 
-def create_token(user_id: UUID, settings: Settings, kind: TokenKind) -> str:
+def create_token(
+    user_id: UUID,
+    settings: Settings,
+    kind: TokenKind,
+    jwt_secret: str | None = None,
+) -> str:
     """Create a signed token with an explicit access or refresh kind."""
     lifetime = (
         settings.access_token_expire_minutes
@@ -37,12 +58,25 @@ def create_token(user_id: UUID, settings: Settings, kind: TokenKind) -> str:
         "iat": now,
         "exp": now + timedelta(minutes=lifetime),
     }
-    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+    return jwt.encode(
+        payload,
+        jwt_secret if jwt_secret is not None else settings.jwt_secret,
+        algorithm="HS256",
+    )
 
 
-def decode_token(token: str, settings: Settings, expected_kind: TokenKind) -> UUID:
+def decode_token(
+    token: str,
+    settings: Settings,
+    expected_kind: TokenKind,
+    jwt_secret: str | None = None,
+) -> UUID:
     """Decode a token and reject expired, malformed, or wrong-kind tokens."""
-    payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+    payload = jwt.decode(
+        token,
+        jwt_secret if jwt_secret is not None else settings.jwt_secret,
+        algorithms=["HS256"],
+    )
     if payload.get("type") != expected_kind:
         raise jwt.InvalidTokenError("Token type is not valid for this operation")
     subject = payload.get("sub")
