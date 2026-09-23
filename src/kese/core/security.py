@@ -10,6 +10,7 @@ from pwdlib import PasswordHash
 from kese.core.settings import Settings
 
 password_hash = PasswordHash.recommended()
+DUMMY_PASSWORD_HASH = password_hash.hash("invalid-user-password")
 TokenKind = Literal["access", "refresh"]
 
 

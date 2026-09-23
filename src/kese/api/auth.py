@@ -1,5 +1,6 @@
 """Authentication HTTP endpoints."""
 
+from time import monotonic
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -54,6 +55,22 @@ async def login(
     credentials: Credentials, request: Request, session: Session
 ) -> TokenResponse:
     """Authenticate a user and return access and refresh tokens."""
+    limit, window = request.app.state.login_limit
+    key = (
+        request.client.host if request.client is not None else "unknown",
+        credentials.email,
+    )
+    now = monotonic()
+    attempts = request.app.state.login_attempts[key]
+    while attempts and attempts[0] <= now - window:
+        attempts.popleft()
+    if len(attempts) >= limit:
+        retry_after = max(1, int(attempts[0] + window - now))
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(retry_after)},
+        )
+    attempts.append(now)
     try:
         access_token, refresh_token = await login_user(
             session, credentials.email, credentials.password, request.app.state.settings

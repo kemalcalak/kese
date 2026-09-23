@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: kese
+          POSTGRES_PASSWORD: kese
+          POSTGRES_DB: kese
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U kese -d kese"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Apply migrations
+        env:
+          KESE_DATABASE_URL: postgresql+asyncpg://kese:kese@127.0.0.1:5433/kese
+        run: uv run alembic upgrade head
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest -q

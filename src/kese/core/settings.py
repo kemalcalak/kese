@@ -17,3 +17,4 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
     events_idle_seconds: float = 25.0
+    login_rate_limit: str = "10/minute"

@@ -21,5 +21,19 @@ services:
       timeout: 5s
       retries: 20
 
+  api:
+    image: ${KESE_API_IMAGE:-ghcr.io/kemalcalak/kese:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KESE_ENV: ${KESE_ENV:-local}
+      KESE_JWT_SECRET: ${KESE_JWT_SECRET:-}
+      KESE_DATABASE_URL: ${KESE_DATABASE_URL:-postgresql+asyncpg://kese:kese@postgres:5432/kese}
+      KESE_LOGIN_RATE_LIMIT: ${KESE_LOGIN_RATE_LIMIT:-10/minute}
+    ports:
+      - "${KESE_API_PORT:-8000}:8000"
+
 volumes:
   kese-pgdata:

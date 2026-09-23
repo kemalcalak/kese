@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kese.core.security import (
+    DUMMY_PASSWORD_HASH,
     create_token,
     decode_token,
     hash_password,
@@ -45,7 +46,8 @@ async def login_user(
 ) -> tuple[str, str]:
     """Validate credentials and issue access and refresh tokens."""
     user = await find_user_by_email(session, email)
-    if user is None or not verify_password(password, user.hashed_password):
+    hashed_password = user.hashed_password if user is not None else DUMMY_PASSWORD_HASH
+    if not verify_password(password, hashed_password) or user is None:
         raise InvalidCredentialsError
     return (
         create_token(user.id, settings, "access"),
