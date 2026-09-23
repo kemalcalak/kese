@@ -231,6 +231,16 @@ def test_local_development_still_starts_without_one(
     assert create_app().title == "kese"
 
 
+def test_local_development_treats_an_empty_secret_as_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Compose passes `KESE_JWT_SECRET=""` when the variable is not set."""
+    monkeypatch.setenv("KESE_ENV", "local")
+    monkeypatch.setenv("KESE_JWT_SECRET", "")
+
+    assert create_app().title == "kese"
+
+
 def test_the_image_runs_as_someone_other_than_root_and_starts_the_app() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
